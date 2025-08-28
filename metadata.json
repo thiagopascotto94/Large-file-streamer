@@ -1,0 +1,5 @@
+{
+  "name": "Large Log File Streamer",
+  "description": "An application to stream and search very large log files from a URL without consuming excessive memory. It lists available files and provides a real-time search interface for the selected log.",
+  "requestFramePermissions": []
+}
