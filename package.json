@@ -1,23 +1,30 @@
 {
   "name": "large-log-file-streamer",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "homepage": "https://thiagopascotto94.github.io/Large-file-streamer/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://seu-usuario.github.io/Large-file-streamer.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "react-dom": "^19.1.1",
     "react": "^19.1.1",
     "path": "^0.12.7",
     "@vitejs/plugin-react": "^5.0.1",
-    "vite": "^7.1.3",
-    "url": "^0.11.4"
+    "vite": "^7.1.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "gh-pages": "^6.3.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
