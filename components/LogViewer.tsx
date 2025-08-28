@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import ChevronLeftIcon from './icons/ChevronLeftIcon';
-import SearchIcon from './icons/SearchIcon';
-import Spinner from './Spinner';
-import StopIcon from './icons/StopIcon';
-import LogLineDetailModal from './LogLineDetailModal';
+import ChevronLeftIcon from './icons/ChevronLeftIcon.tsx';
+import SearchIcon from './icons/SearchIcon.tsx';
+import Spinner from './Spinner.tsx';
+import StopIcon from './icons/StopIcon.tsx';
+import LogLineDetailModal from './LogLineDetailModal.tsx';
 
 interface LogViewerProps {
   fileName: string;

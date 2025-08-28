@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { LogFile } from '../types';
-import FileIcon from './icons/FileIcon';
-import SearchIcon from './icons/SearchIcon';
-import Spinner from './Spinner';
+import { LogFile } from '../types.ts';
+import FileIcon from './icons/FileIcon.tsx';
+import SearchIcon from './icons/SearchIcon.tsx';
+import Spinner from './Spinner.tsx';
 
 interface FileListProps {
   files: LogFile[];

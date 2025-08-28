@@ -1,4 +1,4 @@
-import { LogFile } from '../types';
+import { LogFile } from '../types.ts';
 
 /**
  * Attempts to fetch and parse an HTML directory listing from the given URL.

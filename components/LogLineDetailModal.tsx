@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import XIcon from './icons/XIcon';
+import XIcon from './icons/XIcon.tsx';
 
 interface LogLineDetailModalProps {
   lineNumber: number;

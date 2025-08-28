@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import LogViewer from './components/LogViewer';
-import PencilIcon from './components/icons/PencilIcon';
-import CalendarIcon from './components/icons/CalendarIcon';
-import TerminalIcon from './components/icons/TerminalIcon';
+import LogViewer from './components/LogViewer.tsx';
+import PencilIcon from './components/icons/PencilIcon.tsx';
+import CalendarIcon from './components/icons/CalendarIcon.tsx';
+import TerminalIcon from './components/icons/TerminalIcon.tsx';
 
 const LOG_URL_KEY = 'logStreamer_serverUrl';
 const DEFAULT_LOG_URL = '';
