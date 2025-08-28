@@ -3,29 +3,37 @@ import LogViewer from './components/LogViewer.tsx';
 import PencilIcon from './components/icons/PencilIcon.tsx';
 import CalendarIcon from './components/icons/CalendarIcon.tsx';
 import TerminalIcon from './components/icons/TerminalIcon.tsx';
+import UploadIcon from './components/icons/UploadIcon.tsx';
 
 const LOG_URL_KEY = 'logStreamer_serverUrl';
 const DEFAULT_LOG_URL = '';
 
+export type LogSource = { type: 'remote'; fileName: string } | { type: 'local'; file: File };
+
 const App: React.FC = () => {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [logSource, setLogSource] = useState<LogSource | null>(null);
   const [logServerUrl, setLogServerUrl] = useState<string>(() => localStorage.getItem(LOG_URL_KEY) || DEFAULT_LOG_URL);
   const [urlInput, setUrlInput] = useState<string>(logServerUrl);
   const [isEditingUrl, setIsEditingUrl] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [inputMode, setInputMode] = useState<'date' | 'manual'>('date');
+  const [inputMode, setInputMode] = useState<'date' | 'manual' | 'local'>('date');
   const [manualFileName, setManualFileName] = useState<string>('');
+  const [localFile, setLocalFile] = useState<File | null>(null);
+
 
   const handleBack = () => {
-    setSelectedFile(null);
+    setLogSource(null);
+    setLocalFile(null); // Clear local file when going back
   };
 
   const handleViewLog = () => {
     if (inputMode === 'date' && selectedDate) {
       const fileName = `${selectedDate}-backend-logs.json`;
-      setSelectedFile(fileName);
+      setLogSource({ type: 'remote', fileName });
     } else if (inputMode === 'manual' && manualFileName.trim()) {
-      setSelectedFile(manualFileName.trim());
+      setLogSource({ type: 'remote', fileName: manualFileName.trim() });
+    } else if (inputMode === 'local' && localFile) {
+      setLogSource({ type: 'local', file: localFile });
     }
   };
 
@@ -45,7 +53,25 @@ const App: React.FC = () => {
   const handleUrlFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     handleUrlEditToggle();
+  };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setLocalFile(e.target.files[0]);
+    } else {
+      setLocalFile(null);
+    }
+  };
+
+  const formatBytes = (bytes: number, decimals = 2): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
+
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 sm:p-6 md:p-8">
@@ -55,16 +81,24 @@ const App: React.FC = () => {
             Log Streamer
           </h1>
           <p className="text-center text-slate-400 mt-2">
-            Stream and search large log files from a remote server.
+            Stream and search large log files from a remote server or your local machine.
           </p>
         </header>
 
-        {selectedFile ? (
-          <LogViewer fileName={selectedFile} baseUrl={logServerUrl} onBack={handleBack} />
+        {logSource ? (
+          <LogViewer
+            key={logSource.type === 'remote' ? logSource.fileName : logSource.file.name}
+            source={
+              logSource.type === 'remote'
+                ? { type: 'remote', fileName: logSource.fileName, baseUrl: logServerUrl }
+                : { type: 'local', file: logSource.file }
+            }
+            onBack={handleBack}
+          />
         ) : (
           <div className="space-y-8">
             <div className="bg-slate-800/50 border border-slate-700 rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-semibold mb-4 text-slate-200">Log Server URL</h2>
+                <h2 className="text-xl font-semibold mb-4 text-slate-200">Log Server URL (for remote files)</h2>
                 <form onSubmit={handleUrlFormSubmit} className="flex items-center gap-4 flex-wrap">
                     <div className="relative flex-grow">
                         <input
@@ -96,7 +130,7 @@ const App: React.FC = () => {
                 <h2 className="text-2xl font-semibold mb-4 text-slate-200">
                   Select Log File
                 </h2>
-                 <div className="flex items-center justify-center space-x-1 bg-slate-700/50 p-1 rounded-lg mb-6 max-w-sm mx-auto">
+                 <div className="flex items-center justify-center space-x-1 bg-slate-700/50 p-1 rounded-lg mb-6 max-w-md mx-auto">
                     <button 
                         onClick={() => setInputMode('date')} 
                         className={`w-full px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-500 ${inputMode === 'date' ? 'bg-cyan-600 text-white shadow' : 'text-slate-300 hover:bg-slate-600/50'}`}
@@ -113,6 +147,15 @@ const App: React.FC = () => {
                     >
                         <div className="flex items-center justify-center">
                             <TerminalIcon className="w-5 h-5 mr-2" /> Manual Input
+                        </div>
+                    </button>
+                    <button 
+                        onClick={() => setInputMode('local')} 
+                        className={`w-full px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-cyan-500 ${inputMode === 'local' ? 'bg-cyan-600 text-white shadow' : 'text-slate-300 hover:bg-slate-600/50'}`}
+                        aria-pressed={inputMode === 'local'}
+                    >
+                        <div className="flex items-center justify-center">
+                            <UploadIcon className="w-5 h-5 mr-2" /> Local File
                         </div>
                     </button>
                 </div>
@@ -133,8 +176,9 @@ const App: React.FC = () => {
                             </div>
                             <button
                                 onClick={handleViewLog}
-                                disabled={!selectedDate}
+                                disabled={!selectedDate || !logServerUrl}
                                 className="flex items-center justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900 transition-colors disabled:bg-slate-500 disabled:cursor-not-allowed"
+                                title={!logServerUrl ? 'Please set a server URL first' : ''}
                             >
                                 View Log
                             </button>
@@ -162,14 +206,55 @@ const App: React.FC = () => {
                             </div>
                             <button
                                 onClick={handleViewLog}
-                                disabled={!manualFileName.trim()}
+                                disabled={!manualFileName.trim() || !logServerUrl}
                                 className="flex items-center justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900 transition-colors disabled:bg-slate-500 disabled:cursor-not-allowed"
+                                title={!logServerUrl ? 'Please set a server URL first' : ''}
                             >
                                 View Log
                             </button>
                         </div>
                          <p className="mt-3 text-xs text-slate-500">
                             Enter the full name of the log file you want to view.
+                        </p>
+                    </div>
+                )}
+
+                {inputMode === 'local' && (
+                    <div className="animate-fade-in">
+                        <div className="flex flex-col items-center gap-4">
+                            <input
+                                type="file"
+                                id="local-file-upload"
+                                className="hidden"
+                                onChange={handleFileChange}
+                                aria-label="File upload"
+                            />
+                            <label
+                                htmlFor="local-file-upload"
+                                className="w-full max-w-lg cursor-pointer flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-600 rounded-lg text-center hover:bg-slate-700/50 hover:border-cyan-500 transition-colors"
+                            >
+                                <UploadIcon className="w-10 h-10 text-slate-400 mb-3" />
+                                <span className="text-cyan-400 font-semibold">Click to upload a file</span>
+                                <span className="text-slate-500 text-sm mt-1">or drag and drop</span>
+                            </label>
+                            
+                            {localFile && (
+                                <div className="mt-4 text-center p-4 bg-slate-700/50 rounded-lg w-full max-w-lg animate-fade-in">
+                                    <p className="font-semibold text-slate-200 truncate" title={localFile.name}>{localFile.name}</p>
+                                    <p className="text-sm text-slate-400">{formatBytes(localFile.size)}</p>
+                                </div>
+                            )}
+
+                            <button
+                                onClick={handleViewLog}
+                                disabled={!localFile}
+                                className="mt-4 flex items-center justify-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 focus:ring-offset-slate-900 transition-colors disabled:bg-slate-500 disabled:cursor-not-allowed"
+                            >
+                                View Log
+                            </button>
+                        </div>
+                         <p className="mt-4 text-center text-xs text-slate-500">
+                            The file is processed locally in your browser and is not uploaded to any server.
                         </p>
                     </div>
                 )}

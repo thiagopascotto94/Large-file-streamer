@@ -4,17 +4,16 @@ import SearchIcon from './icons/SearchIcon.tsx';
 import Spinner from './Spinner.tsx';
 import StopIcon from './icons/StopIcon.tsx';
 import LogLineDetailModal from './LogLineDetailModal.tsx';
+import { LogSource } from '../App.tsx';
 
 interface LogViewerProps {
-  fileName: string;
-  baseUrl: string;
+  source: { type: 'remote'; fileName: string; baseUrl: string } | { type: 'local'; file: File };
   onBack: () => void;
 }
 
-const MAX_DISPLAY_LINES = 5000; // To prevent excessive memory usage
 const ROW_HEIGHT = 22; // Crucial for virtualization calculations. Corresponds to text-sm, leading-relaxed.
 
-const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
+const LogViewer: React.FC<LogViewerProps> = ({ source, onBack }) => {
   const [logLines, setLogLines] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -22,6 +21,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
   const [status, setStatus] = useState('Initializing...');
   const [error, setError] = useState<string | null>(null);
   const [totalBytes, setTotalBytes] = useState(0);
+  const [fileSize, setFileSize] = useState<number | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [selectedLine, setSelectedLine] = useState<{ lineNumber: number; content: string } | null>(null);
   
@@ -50,24 +50,60 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
     const streamLogFile = async () => {
       setLogLines([]);
       setTotalBytes(0);
+      setFileSize(null);
       setError(null);
-      setStatus('Connecting to stream...');
+      setStatus('Initializing...');
 
       try {
-        const fullUrl = `${baseUrl}/${fileName}`;
-        const response = await fetch(fullUrl, { signal });
-
-        if (!response.ok) {
-           const errorText = await response.text().catch(() => 'Could not retrieve error details from server.');
-           throw new Error(`HTTP error! Status: ${response.status} ${response.statusText}. Server says: ${errorText}`);
+        // Step 1: Get total file size if possible for progress indicator
+        if (source.type === 'remote') {
+            try {
+                setStatus('Fetching file size...');
+                const fullUrl = `${source.baseUrl}/${source.fileName}`;
+                const headResponse = await fetch(fullUrl, { method: 'HEAD', signal });
+                if (headResponse.ok) {
+                    const contentLength = headResponse.headers.get('Content-Length');
+                    if (contentLength) {
+                        setFileSize(parseInt(contentLength, 10));
+                    }
+                }
+            } catch (e) {
+                console.warn("Could not fetch file size with HEAD request. Progress bar will not be available.", e);
+            }
+        } else { // Local file
+            setFileSize(source.file.size);
         }
 
-        if (!response.body) {
-            throw new Error("Response body is empty.");
+
+        // Step 2: Start streaming the content
+        let reader: ReadableStreamDefaultReader<Uint8Array>;
+
+        if (source.type === 'remote') {
+          setStatus('Connecting to stream...');
+          const fullUrl = `${source.baseUrl}/${source.fileName}`;
+          const response = await fetch(fullUrl, { signal });
+
+          if (!response.ok) {
+             const errorText = await response.text().catch(() => 'Could not retrieve error details from server.');
+             throw new Error(`HTTP error! Status: ${response.status} ${response.statusText}. Server says: ${errorText}`);
+          }
+
+          if (!response.body) {
+              throw new Error("Response body is empty.");
+          }
+          reader = response.body.getReader();
+          setStatus('Streaming log data...');
+        } else { // Local file
+          setStatus('Reading local file...');
+          if (!source.file.stream) {
+            throw new Error("This browser doesn't support the File System Access API for streaming. Please try a modern browser like Chrome or Edge.");
+          }
+          const stream = source.file.stream();
+          reader = stream.getReader();
+          setStatus('Streaming local file...');
         }
 
-        setStatus('Streaming log data...');
-        const reader = response.body.getReader();
+
         const decoder = new TextDecoder();
         let buffer = '';
         let allLines: string[] = [];
@@ -78,9 +114,6 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
             if (done) {
                 if (buffer) {
                     allLines.push(buffer);
-                }
-                if (allLines.length > MAX_DISPLAY_LINES) {
-                  allLines = allLines.slice(allLines.length - MAX_DISPLAY_LINES);
                 }
                 setLogLines(allLines);
                 setStatus('Stream finished.');
@@ -96,19 +129,18 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
 
             if (lines.length > 0) {
                 allLines.push(...lines);
-                if (allLines.length > MAX_DISPLAY_LINES) {
-                    // Trim the beginning of the array to control memory usage during streaming
-                    allLines = allLines.slice(allLines.length - MAX_DISPLAY_LINES);
-                }
             }
         }
       } catch (err: any) {
         if (err.name === 'AbortError') {
-          console.log('Fetch aborted by user.');
+          console.log('Stream aborted by user.');
           setStatus('Stream cancelled.');
         } else {
           console.error("Streaming error:", err);
-          setError(`Failed to stream file. This is likely a CORS issue, a network problem, or the file may not exist. Please check the browser console for details. Error: ${err.message}`);
+          const errorMessage = source.type === 'remote'
+            ? `Failed to stream file. This is likely a CORS issue, a network problem, or the file may not exist. Please check the browser console for details. Error: ${err.message}`
+            : `Failed to read the local file. The file might be corrupted or the browser may have blocked access. Error: ${err.message}`;
+          setError(errorMessage);
           setStatus('Error occurred.');
         }
       }
@@ -119,7 +151,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [fileName, baseUrl]);
+  }, [source]);
 
   const filteredLines = useMemo(() => {
     const linesWithIndices = logLines.map((line, index) => ({ line, originalIndex: index }));
@@ -168,15 +200,32 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
 
   const visibleLines = useMemo(() => filteredLines.slice(startIndex, endIndex), [filteredLines, startIndex, endIndex]);
 
-  const isLoading = status === 'Connecting to stream...' || status === 'Streaming log data...';
+  const isLoading = status === 'Connecting to stream...' || status === 'Streaming log data...' || status === 'Reading local file...' || status === 'Streaming local file...' || status === 'Fetching file size...';
+  const fileName = source.type === 'remote' ? source.fileName : source.file.name;
+
+  const progressPercent = fileSize && totalBytes > 0 ? Math.min((totalBytes / fileSize) * 100, 100) : 0;
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading && logLines.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center p-4 text-slate-500 h-full">
           <Spinner />
           <span className="ml-2 mt-4">{status}</span>
-          <span className="text-xs mt-1 text-slate-600">({formatBytes(totalBytes)} loaded)</span>
+          {fileSize ? (
+            <div className="text-center mt-2">
+              <p className="text-sm text-slate-400">
+                {formatBytes(totalBytes)} / {formatBytes(fileSize)} ({progressPercent.toFixed(1)}%)
+              </p>
+              <div className="w-64 bg-slate-700 rounded-full h-1.5 mt-2">
+                <div
+                  className="bg-cyan-500 h-1.5 rounded-full transition-all duration-200"
+                  style={{ width: `${progressPercent}%` }}
+                ></div>
+              </div>
+            </div>
+          ) : (
+             <span className="text-xs mt-1 text-slate-600">({formatBytes(totalBytes)} loaded)</span>
+          )}
         </div>
       );
     }
@@ -248,7 +297,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
 
   return (
     <div className="flex flex-col h-[80vh] bg-slate-800/50 border border-slate-700 rounded-lg shadow-lg overflow-hidden">
-      <div className="flex-shrink-0 flex items-center justify-between p-4 bg-slate-800 border-b border-slate-700 flex-wrap gap-4">
+      <div className="flex-shrink-0 relative flex items-center justify-between p-4 bg-slate-800 border-b border-slate-700 flex-wrap gap-4">
         <div className="flex items-center min-w-0">
           <button onClick={onBack} className="p-2 rounded-full hover:bg-slate-700 transition-colors mr-3" aria-label="Go back">
             <ChevronLeftIcon className="w-6 h-6 text-slate-300" />
@@ -259,7 +308,13 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
               <span>{status}</span>
               {isLoading && <div className="ml-2 w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>}
               <span className="mx-2">|</span>
-              <span>{formatBytes(totalBytes)} streamed</span>
+              {isLoading && fileSize ? (
+                  <span>
+                    {formatBytes(totalBytes)} / {formatBytes(fileSize)} ({progressPercent.toFixed(0)}%)
+                  </span>
+              ) : (
+                 <span>{formatBytes(totalBytes)} streamed</span>
+              )}
               {!isLoading && logLines.length > 0 && (
                 <>
                   <span className="mx-2">|</span>
@@ -297,7 +352,7 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="bg-slate-700 border border-slate-600 rounded-md py-2 pl-10 pr-10 w-64 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              disabled={isLoading || error !== null}
+              disabled={isLoading || error !== null || logLines.length === 0}
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <SearchIcon className="w-5 h-5 text-slate-400" />
@@ -309,6 +364,14 @@ const LogViewer: React.FC<LogViewerProps> = ({ fileName, baseUrl, onBack }) => {
             )}
           </div>
         </div>
+        {isLoading && fileSize && (
+            <div className="absolute bottom-0 left-0 w-full h-[2px] bg-slate-700/50">
+                <div
+                    className="h-full bg-cyan-400 transition-all duration-100"
+                    style={{ width: `${progressPercent}%` }}
+                />
+            </div>
+        )}
       </div>
 
       {error ? (
