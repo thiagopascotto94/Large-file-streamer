@@ -39,8 +39,9 @@ The application achieves its performance through three core techniques:
 
 1.  **Configure the URL**: In the "Log Server URL" field, enter the base URL where your log files are hosted. Click "Edit" to change it. This URL is saved locally in your browser.
 2.  **Select a File**: Choose your input method:
-    -   **By Date**: Use the date picker to automatically construct a filename based on a `YYYY-MM-DD-backend-logs.json` naming convention.
+    -   **By Date**: Use the date picker to automatically construct a filename based on a `YYYY-MM-DD-backend-logs.json` naming convention. **only in my case**
     -   **Manual Input**: Switch the toggle to manually type the exact filename you need.
+    -   **Local File**: Switch the toggle to input local file mode.
 3.  **View the Log**: Click "View Log" to begin streaming.
 4.  **Search**: Use the search bar at the top right to filter the content in real-time.
 5.  **Inspect a Line**: Click on any truncated line in the viewer to open a modal and see its full content.
