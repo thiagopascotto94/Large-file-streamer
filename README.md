@@ -45,6 +45,51 @@ The application achieves its performance through three core techniques:
 4.  **Search**: Use the search bar at the top right to filter the content in real-time.
 5.  **Inspect a Line**: Click on any truncated line in the viewer to open a modal and see its full content.
 
+## Development and Local Testing
+
+### Why you can't open `dist/index.html` directly
+
+You have observed that opening the `dist/index.html` file directly in your browser (using a `file:///...` path) results in a CORS error and fails to load the application. **This is expected behavior for all modern web applications.**
+
+There are two reasons for this:
+1.  **Security (CORS):** Browsers block web pages opened from `file://` from loading other files (like JavaScript modules) for security reasons. This is what causes the `CORS policy` error.
+2.  **Incorrect Paths:** Your build tool generates paths starting with `/` (e.g., `/assets/index.js`). When you are on a real website, `/` refers to the website's root. When you are on a `file://` path, `/` refers to your computer's root drive (like `C:/` or `D:/`), which is incorrect. This is why it tries to load `D:/assets/...`.
+
+### The Correct Way to Test Locally
+
+To test your application, you **must** serve the `dist` folder using a local web server. This simulates a real web environment and solves both problems.
+
+**The easiest way:**
+1.  Make sure you have [Node.js](https://nodejs.org/) installed.
+2.  Build the project to create the `dist` folder.
+3.  In your terminal, navigate to your project's root directory.
+4.  Run this command:
+    ```bash
+    npx serve -s dist
+    ```
+5.  Open the `http://localhost:3000` URL it gives you in your browser. Your app will now work correctly.
+
+## Deployment to GitHub Pages
+
+To deploy this application to a sub-path on a domain, like `https://<your-username>.github.io/<your-repo-name>/`, you must configure the build process to use relative paths. Otherwise, the browser will try to load assets from the root of the domain (e.g., `github.io/assets`) instead of from your repository's sub-path.
+
+If you are using **Vite** as your build tool (which is common for modern React projects), you can fix this by creating a `vite.config.ts` file in the root of your project with the following content:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  // IMPORTANT: Set this to your repository name, with slashes
+  base: '/Large-file-streamer/', 
+})
+```
+
+After adding this configuration file, run your build command again (e.g., `npm run build`). The generated `dist/index.html` will now have correct, relative paths for the CSS and JavaScript files, and your deployed application will work correctly.
+
 ## ❗️ IMPORTANT: Server-side Requirements
 
 For this application to work, your log server **must** be configured correctly. If you encounter errors, it is almost certainly a server-side issue.
